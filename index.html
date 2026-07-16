@@ -1050,9 +1050,11 @@ const toolMeta = {
     options: `<div class="tool-options-row"><label>Format:</label><select id="optImgFormat"><option value="png">PNG</option><option value="jpeg">JPG</option></select></div>
               <div class="tool-options-row"><label>Resolution:</label><select id="optImgQuality" aria-label="Image quality"><option value="1.5">Standard (1.5x)</option><option value="2" selected>High (2x)</option><option value="3">Print (3x)</option></select></div>` },
   doc:        { name:'Convert to Word',    badge:'DOC',  badgeBg:'var(--blue-bg)',   badgeColor:'var(--blue)',    btnText:'Convert to Word',
-    options: `<div class="tool-options-row"><label>Breaks:</label><select id="optDocBreaks"><option value="page">Page breaks</option><option value="space">Blank lines</option></select></div>` },
+    options: `<div class="tool-options-row"><label>Breaks:</label><select id="optDocBreaks"><option value="page">Page breaks</option><option value="space">Blank lines</option></select></div>
+              <div class="tool-options-row"><label>OCR:</label><select id="optDocOcr"><option value="none" selected>None (direct text)</option><option value="eng">English OCR</option><option value="ben">Bengali OCR</option><option value="eng+ben">English + Bengali OCR</option></select></div>` },
   txt:        { name:'Convert to Text',    badge:'TXT',  badgeBg:'var(--blue-bg)',   badgeColor:'var(--blue)',    btnText:'Convert to Text',
-    options: `<div class="tool-options-row"><label>Markers:</label><select id="optTxtBreaks"><option value="page">Page markers</option><option value="none">No markers</option></select></div>` },
+    options: `<div class="tool-options-row"><label>Markers:</label><select id="optTxtBreaks"><option value="page">Page markers</option><option value="none">No markers</option></select></div>
+              <div class="tool-options-row"><label>OCR:</label><select id="optTxtOcr"><option value="none" selected>None (direct text)</option><option value="eng">English OCR</option><option value="ben">Bengali OCR</option><option value="eng+ben">English + Bengali OCR</option></select></div>` },
   split:      { name:'Split PDF',          badge:'SPLIT', badgeBg:'var(--orange-bg)', badgeColor:'var(--orange)',  btnText:'Split PDF',
     options: `<div class="tool-options-row"><label>Mode:</label><select id="optSplitMode"><option value="all">Every page (zip)</option><option value="range">Page range</option></select></div>
               <div class="tool-options-row" id="splitRangeInputs" style="display:none;"><label>Pages:</label><input type="number" id="optSplitFrom" min="1" value="1" style="width:70px;"><span>to</span><input type="number" id="optSplitTo" min="1" value="1" style="width:70px;"></div>` },
@@ -1079,7 +1081,8 @@ const toolMeta = {
     options: `<p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Select one or more image files (JPG, PNG, WebP, BMP, GIF).</p>
               <div class="tool-options-row"><label>Page size:</label><select id="optImg2pdfSize"><option value="fit" selected>Fit to image</option><option value="a4">A4</option><option value="letter">Letter</option></select></div>
               <div class="tool-options-row"><label>Orientation:</label><select id="optImg2pdfOrientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>` },
-  markdown:   { name:'PDF to Markdown',     badge:'MD',   badgeBg:'var(--blue-bg)',   badgeColor:'var(--blue)',    btnText:'Convert to Markdown', options:'' },
+  markdown:   { name:'PDF to Markdown',     badge:'MD',   badgeBg:'var(--blue-bg)',   badgeColor:'var(--blue)',    btnText:'Convert to Markdown',
+    options: `<div class="tool-options-row"><label>OCR:</label><select id="optMdOcr"><option value="none" selected>None (direct text)</option><option value="eng">English OCR</option><option value="ben">Bengali OCR</option><option value="eng+ben">English + Bengali OCR</option></select></div>` },
   pagenum:    { name:'Page Numbers',        badge:'NUM',  badgeBg:'var(--purple-bg)', badgeColor:'var(--purple)',  btnText:'Add Page Numbers',
     options: `<div class="tool-options-row"><label>Position:</label><select id="optPnPos"><option value="bottom-center" selected>Bottom center</option><option value="bottom-left">Bottom left</option><option value="bottom-right">Bottom right</option><option value="top-center">Top center</option><option value="top-left">Top left</option><option value="top-right">Top right</option></select></div>
               <div class="tool-options-row"><label>Start number:</label><input type="number" id="optPnStart" min="1" value="1" style="width:70px;"></div>
@@ -1395,13 +1398,27 @@ async function extractPageLines(page){
 }
 async function doConvertWord(){
   const breakMode=document.getElementById('optDocBreaks').value;
+  const ocrLang=document.getElementById('optDocOcr').value;
+  const useOcr=ocrLang!=='none';
+  if(useOcr&&!window.Tesseract){showError('OCR engine could not load.');return;}
   const n=currentPdf.numPages;
   let bodyHtml='';
   for(let i=1;i<=n;i++){
-    setStatus('Extracting text — page '+i+' of '+n,Math.round((i-1)/n*100));
     const page=await currentPdf.getPage(i);
-    const lines=await extractPageLines(page);
-    bodyHtml+=lines.map(l=>'<p style="margin:0 0 8pt 0;">'+escapeHtml(l)+'</p>').join('\n');
+    if(useOcr){
+      setStatus('OCR page '+i+' of '+n,Math.round((i-1)/n*100));
+      const vp=page.getViewport({scale:2});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const result=await Tesseract.recognize(c,ocrLang,{logger:m=>{if(m.status&&typeof m.progress==='number')setStatus('OCR '+m.status+' page '+i+' of '+n,Math.round((i-1+m.progress)/n*100));}});
+      const text=(result.data.text||'').trim();
+      const lines=text.split('\n').filter(l=>l.trim());
+      bodyHtml+=lines.map(l=>'<p style="margin:0 0 8pt 0;">'+escapeHtml(l)+'</p>').join('\n');
+    } else {
+      setStatus('Extracting text — page '+i+' of '+n,Math.round((i-1)/n*100));
+      const lines=await extractPageLines(page);
+      bodyHtml+=lines.map(l=>'<p style="margin:0 0 8pt 0;">'+escapeHtml(l)+'</p>').join('\n');
+    }
     if(i<n) bodyHtml+=breakMode==='page'?'<br clear="all" style="page-break-before:always;">':'<p>&nbsp;</p>';
   }
   const doc='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>PDFZero</title></head><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;">'+bodyHtml+'</body></html>';
@@ -1411,14 +1428,27 @@ async function doConvertWord(){
 }
 async function doConvertText(){
   const breakMode=document.getElementById('optTxtBreaks').value;
+  const ocrLang=document.getElementById('optTxtOcr').value;
+  const useOcr=ocrLang!=='none';
+  if(useOcr&&!window.Tesseract){showError('OCR engine could not load.');return;}
   const n=currentPdf.numPages;
   let out='';
   for(let i=1;i<=n;i++){
-    setStatus('Extracting text — page '+i+' of '+n,Math.round((i-1)/n*100));
     const page=await currentPdf.getPage(i);
-    const lines=await extractPageLines(page);
-    if(breakMode==='page') out+='----- Page '+i+' -----\n';
-    out+=lines.join('\n')+'\n\n';
+    if(useOcr){
+      setStatus('OCR page '+i+' of '+n,Math.round((i-1)/n*100));
+      const vp=page.getViewport({scale:2});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const result=await Tesseract.recognize(c,ocrLang,{logger:m=>{if(m.status&&typeof m.progress==='number')setStatus('OCR '+m.status+' page '+i+' of '+n,Math.round((i-1+m.progress)/n*100));}});
+      if(breakMode==='page') out+='----- Page '+i+' -----\n';
+      out+=(result.data.text||'').trim()+'\n\n';
+    } else {
+      setStatus('Extracting text — page '+i+' of '+n,Math.round((i-1)/n*100));
+      const lines=await extractPageLines(page);
+      if(breakMode==='page') out+='----- Page '+i+' -----\n';
+      out+=lines.join('\n')+'\n\n';
+    }
   }
   setStatus('Packaging...',95);
   downloadBlob(new Blob([out],{type:'text/plain;charset=utf-8'}),baseName()+'.txt');
@@ -1617,30 +1647,45 @@ async function doImg2Pdf(){
 
 // ===== PDF TO MARKDOWN =====
 async function doMarkdown(){
+  const ocrLang=document.getElementById('optMdOcr').value;
+  const useOcr=ocrLang!=='none';
+  if(useOcr&&!window.Tesseract){showError('OCR engine could not load.');return;}
   const n=currentPdf.numPages;
   let md='';
   for(let i=1;i<=n;i++){
-    setStatus('Extracting page '+i+' of '+n,Math.round((i-1)/n*100));
     const page=await currentPdf.getPage(i);
-    const tc=await page.getTextContent();
-    const items=tc.items;
-    let lines=[],lastY=null,current=[];
-    items.forEach(item=>{
-      const y=item.transform[5];
-      if(lastY===null||Math.abs(y-lastY)>4){
-        if(current.length)lines.push({text:current.map(c=>c.str).join(' '),height:current[0].height});
-        current=[item];lastY=y;
-      } else current.push(item);
-    });
-    if(current.length)lines.push({text:current.map(c=>c.str).join(' '),height:current[0].height});
-    md+='## Page '+i+'\n\n';
-    lines.forEach(l=>{
-      const t=l.text.trim();
-      if(!t)return;
-      if(l.height>20)md+='### '+t+'\n\n';
-      else if(l.height>16)md+='#### '+t+'\n\n';
-      else md+=t+'\n\n';
-    });
+    if(useOcr){
+      setStatus('OCR page '+i+' of '+n,Math.round((i-1)/n*100));
+      const vp=page.getViewport({scale:2});
+      const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const result=await Tesseract.recognize(c,ocrLang,{logger:m=>{if(m.status&&typeof m.progress==='number')setStatus('OCR '+m.status+' page '+i+' of '+n,Math.round((i-1+m.progress)/n*100));}});
+      md+='## Page '+i+'\n\n';
+      const text=(result.data.text||'').trim();
+      const lines=text.split('\n').filter(l=>l.trim());
+      lines.forEach(l=>{md+=l+'\n\n';});
+    } else {
+      setStatus('Extracting page '+i+' of '+n,Math.round((i-1)/n*100));
+      const tc=await page.getTextContent();
+      const items=tc.items;
+      let lines=[],lastY=null,current=[];
+      items.forEach(item=>{
+        const y=item.transform[5];
+        if(lastY===null||Math.abs(y-lastY)>4){
+          if(current.length)lines.push({text:current.map(c=>c.str).join(' '),height:current[0].height});
+          current=[item];lastY=y;
+        } else current.push(item);
+      });
+      if(current.length)lines.push({text:current.map(c=>c.str).join(' '),height:current[0].height});
+      md+='## Page '+i+'\n\n';
+      lines.forEach(l=>{
+        const t=l.text.trim();
+        if(!t)return;
+        if(l.height>20)md+='### '+t+'\n\n';
+        else if(l.height>16)md+='#### '+t+'\n\n';
+        else md+=t+'\n\n';
+      });
+    }
     if(i<n)md+='---\n\n';
   }
   setStatus('Packaging...',95);

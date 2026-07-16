@@ -2,6 +2,8 @@ const CACHE_NAME = 'pdfzero-v1';
 const ASSETS = [
   '/',
   '/index.html',
+  '/eng.traineddata',
+  '/ben.traineddata',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
