@@ -86,14 +86,50 @@ A full-featured PDF toolkit that lives in a single HTML file. Open it, use it, c
 ## One-click start
 
 ```bash
-git clone https://github.com/your-username/pdfzero.git
-cd pdfzero
+git clone https://github.com/your-username/PDFZero.git
+cd PDFZero
 start index.html     # Windows
 open index.html      # macOS
 xdg-open index.html  # Linux
 ```
 
 That's it. No `npm install`, no build step, no Docker.
+
+### Deploy to GitHub Pages
+
+Push the repo and enable GitHub Pages from the root of the `main` branch. The site will be available at:
+
+```
+https://<username>.github.io/PDFZero/
+```
+
+Make sure to update the canonical URL and OG image paths in `index.html` to match your actual domain.
+
+---
+
+## SEO & Accessibility
+
+PDFZero includes:
+- **Open Graph & Twitter Card** meta tags for rich social sharing previews
+- **JSON-LD structured data** (WebApplication schema) for search engines
+- **Canonical URL** and **robots.txt** / **sitemap.xml** for proper indexing
+- **Skip-to-content link**, ARIA roles, semantic landmarks, focus management
+- **Service Worker** with relative asset paths for offline support on GitHub Pages
+
+---
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `index.html` | Single-file app (~2100 lines HTML/CSS/JS) |
+| `sw.js` | Service Worker for offline caching |
+| `manifest.json` | PWA manifest with icons |
+| `robots.txt` | Search engine crawl rules |
+| `sitemap.xml` | XML sitemap for search indexing |
+| `og-image.png` | Open Graph / social share image |
+| `eng.traineddata` | Tesseract English OCR data |
+| `ben.traineddata` | Tesseract Bengali OCR data |
 
 ---
 
